@@ -17,6 +17,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".dateAdapter" />
+        <activity android:name=".ContentAdapter"></activity>
     </application>
 
 </manifest>
