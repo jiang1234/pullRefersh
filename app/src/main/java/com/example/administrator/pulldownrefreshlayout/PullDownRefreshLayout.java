@@ -7,13 +7,15 @@ import android.os.Bundle;
 import android.text.LoginFilter;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.NestedScrollingParentHelper;
-
+import android.widget.Scroller;
 
 
 public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingParent{
@@ -24,7 +26,12 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
     private int mOriginalOffSetHeader;
     //现在header的位置
     private int mCurrentOffSetHeader;
+    private int mLastXIntercept;
+    private int mLastYIntercept;
     private View mTouch;
+    private VelocityTracker mVelocityTracker;
+    private Scroller mScroller;
+
     private ImageView mHeader;
     private  NestedScrollingParentHelper mNestedScrollingParentHelper;
     private boolean isHeaderShow;
@@ -39,6 +46,8 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         }
         mNestedScrollingParentHelper = new NestedScrollingParentHelper(this){};
         isHeaderShow = false;
+        mVelocityTracker = VelocityTracker.obtain();
+        mScroller = new Scroller(getContext());
     }
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec){
         super.onMeasure(widthMeasureSpec,heightMeasureSpec);
@@ -67,6 +76,7 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         int mHeaderLeft = getPaddingLeft();
         int mHeaderRight = mHeaderLeft + mHeaderWidth;
         int mHeaderTop = mOriginalOffSetHeader;
+
         int mHeaderBottom = mHeaderTop + mHeaderHeight;
         mHeader.layout(mHeaderLeft,mHeaderTop,mHeaderRight,mHeaderBottom);
         int mTouchLeft = getPaddingLeft();
@@ -74,6 +84,80 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         int mTouchTop = getPaddingTop()+mHeaderBottom;
         int mTouchBottom = mTouchTop + mTouchHeight;
         mTouch.layout(mTouchLeft,mTouchTop,mTouchRight,mTouchBottom);
+    }
+    //还未考虑多指触碰的情况，先考虑单指触碰
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent event){
+        mVelocityTracker.addMovement(event);
+        boolean intercepted = false;
+        int x = (int)event.getX();
+        int y = (int)event.getY();
+        switch(event.getAction()){
+            case MotionEvent.ACTION_DOWN:{
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_DOWN");
+                intercepted = false;
+                break;
+            }
+            case MotionEvent.ACTION_MOVE:{
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE");
+                intercepted = false;
+                break;
+            }
+            case MotionEvent.ACTION_UP:{
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
+                int deltaX = x - mLastXIntercept;
+                int deltaY = y - mLastYIntercept;
+                //如果是垂直方向的滑动
+                if(Math.abs(deltaY)>Math.abs(deltaX)){
+                    mVelocityTracker.computeCurrentVelocity(1000);
+                    if(isScrollingDown(mVelocityTracker.getXVelocity())){
+                        if(isHeaderShow){
+                            intercepted = true;
+
+                        }else{
+                            intercepted = false;
+                        }
+                    }else{
+                        intercepted = false;
+                    }
+                }else{
+                    intercepted = false;
+                }
+                mVelocityTracker.clear();
+                break;
+
+            }
+            default:
+                break;
+        }
+        mLastXIntercept = x;
+        mLastYIntercept = y;
+        return intercepted;
+    }
+    @Override
+    public boolean onTouchEvent(MotionEvent event){
+        mVelocityTracker.addMovement(event);
+        int x = (int)event.getX();
+        int y = (int)event.getY();
+        switch (event.getAction()){
+            case MotionEvent.ACTION_DOWN:{
+                break;
+            }
+            case MotionEvent.ACTION_MOVE:{
+                break;
+            }
+            case MotionEvent.ACTION_UP:{
+                Log.i(Log_TAG, "onTouchEvent: ACTION_UP");
+                int dy = mCurrentOffSetHeader - mOriginalOffSetHeader;
+                scrollBy(0,dy);
+                mCurrentOffSetHeader -= dy;
+                isHeaderShow = false;
+                break;
+            }
+            default:
+                break;
+        }
+        return true;
     }
     //一下为NestedScrolling嵌套滚动机制
     //NestedScrollingParent
@@ -158,5 +242,19 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
     }
     public boolean canScrollingDown(){
         return ViewCompat.canScrollVertically(mTouch,1);
+    }
+    public boolean isScrollingDown(float yVelocity){
+        if(yVelocity < 0){
+            return false;
+        }else{
+            return true;
+        }
+    }
+    public boolean isScrollingRight(float xVelocity){
+        if(xVelocity < 0){
+            return false;
+        }else{
+            return true;
+        }
     }
 }
