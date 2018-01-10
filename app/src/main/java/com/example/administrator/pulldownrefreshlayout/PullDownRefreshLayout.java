@@ -92,46 +92,54 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         boolean intercepted = false;
         int x = (int)event.getX();
         int y = (int)event.getY();
+      //  Log.i(Log_TAG, "onInterceptTouchEvent:"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:{
                 Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_DOWN");
+               // Log.i(Log_TAG, "onInterceptTouchEvent:ACTION_DOWN"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
                 intercepted = false;
                 break;
             }
             case MotionEvent.ACTION_MOVE:{
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE");
-                intercepted = false;
-                break;
-            }
-            case MotionEvent.ACTION_UP:{
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE1");
+               // Log.i(Log_TAG, "onInterceptTouchEvent:ACTION_MOVE"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
                 int deltaX = x - mLastXIntercept;
                 int deltaY = y - mLastYIntercept;
-                //如果是垂直方向的滑动
-                if(Math.abs(deltaY)>Math.abs(deltaX)){
-                    mVelocityTracker.computeCurrentVelocity(1000);
-                    if(isScrollingDown(mVelocityTracker.getXVelocity())){
-                        if(isHeaderShow){
-                            intercepted = true;
+                if(canScrollingUp()){
+                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE2"+canScrollingUp()+Math.abs(deltaY)+"aa" + mTouchSlop+"aa"+deltaY);
+                    return false;
+                }
 
-                        }else{
-                            intercepted = false;
-                        }
+                //如果是垂直方向的滑动
+                //Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE垂直"+"x"+x+"y"+y+"dy"+deltaY);
+                if(Math.abs(deltaY)>Math.abs(deltaX)){
+                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE3");
+                    mVelocityTracker.computeCurrentVelocity(1000);
+                   //Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP垂直"+isScrollingDown(mVelocityTracker.getXVelocity()));
+                    if(isScrollingDown(mVelocityTracker.getYVelocity()) && Math.abs(deltaY) > mTouchSlop){
+                        Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE4"+mVelocityTracker.getYVelocity());
+                        intercepted = true;
                     }else{
+                        Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE5");
                         intercepted = false;
                     }
                 }else{
+                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE6");
                     intercepted = false;
                 }
                 mVelocityTracker.clear();
                 break;
-
+            }
+            case MotionEvent.ACTION_UP:{
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
+                break;
             }
             default:
                 break;
         }
         mLastXIntercept = x;
         mLastYIntercept = y;
+        Log.i(Log_TAG, "onInterceptTouchEvent: return"+intercepted);
         return intercepted;
     }
     @Override
@@ -141,9 +149,20 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         int y = (int)event.getY();
         switch (event.getAction()){
             case MotionEvent.ACTION_DOWN:{
+                Log.i(Log_TAG, "onTouchEvent: ACTION_DOWN");
                 break;
             }
             case MotionEvent.ACTION_MOVE:{
+                Log.i(Log_TAG, "onTouchEvent: ACTION_MOVE");
+                int deltaY = mLastYIntercept - y;
+                int scrollY = 0;
+                if(deltaY < mCurrentOffSetHeader){
+                    scrollY = (int)(mCurrentOffSetHeader*0.2);
+                }else{
+                    scrollY = (int)(deltaY*0.2);
+                }
+                scrollBy(0,scrollY);
+                mCurrentOffSetHeader -= scrollY;
                 break;
             }
             case MotionEvent.ACTION_UP:{
@@ -163,30 +182,30 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
     //NestedScrollingParent
     @Override
     public boolean onStartNestedScroll(View child,View target,int nestedScrollAxes){
-        Log.i(Log_TAG, "onStartNestedScroll: ");
+      //  Log.i(Log_TAG, "onStartNestedScroll: ");
         return (nestedScrollAxes & ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
     }
     @Override
     public void onNestedScrollAccepted(View child,View target,int nestedScrollAxes){
-        Log.i(Log_TAG, "onNestedScrollAccepted: ");
+      //  Log.i(Log_TAG, "onNestedScrollAccepted: ");
         mNestedScrollingParentHelper.onNestedScrollAccepted(child,target,nestedScrollAxes);
     }
 
     @Override
     public void onStopNestedScroll(View target) {
-        Log.i(Log_TAG, "onStopNestedScroll: ");
+       // Log.i(Log_TAG, "onStopNestedScroll: ");
         mNestedScrollingParentHelper.onStopNestedScroll(target);
     }
 
     @Override
     public void onNestedScroll(View target, int dxConsumed, int dyConsumed, int dxUnconsumed, int dyUnconsumed) {
-        Log.i(Log_TAG, "onNestedScroll: ");
+        //Log.i(Log_TAG, "onNestedScroll: ");
 
     }
 
     @Override
     public void onNestedPreScroll(View target, int dx, int dy, int[] consumed) {
-        Log.i(Log_TAG, "onNestedPreScroll: ");
+       // Log.i(Log_TAG, "onNestedPreScroll: ");
         if(dy<0 && !canScrollingUp()){
             if(dy < mCurrentOffSetHeader){
                 //滑动距离会使Header超出所允许的高度
@@ -200,7 +219,7 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
             }
             scrollBy(0,consumed[1]);
             isHeaderShow = true;
-            Log.i(Log_TAG, "onNestedPreScroll:Up "+dy+"consumed"+consumed[1]+"header"+mCurrentOffSetHeader);
+            //Log.i(Log_TAG, "onNestedPreScroll:Up "+dy+"consumed"+consumed[1]+"header"+mCurrentOffSetHeader);
         }
         if(dy>0 && !canScrollingDown()){
             if(mCurrentOffSetHeader - dy <mOriginalOffSetHeader){
@@ -214,25 +233,25 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
                 mCurrentOffSetHeader -= dy;
             }
             scrollBy(0,consumed[1]);
-            Log.i(Log_TAG, "onNestedPreScroll:Down "+dy+"consumed"+consumed[1]+"header"+mCurrentOffSetHeader);
+           // Log.i(Log_TAG, "onNestedPreScroll:Down "+dy+"consumed"+consumed[1]+"header"+mCurrentOffSetHeader);
         }
     }
 
     @Override
     public boolean onNestedFling(View target, float velocityX, float velocityY, boolean consumed) {
-        Log.i(Log_TAG, "onNestedFling: ");
+        //Log.i(Log_TAG, "onNestedFling: ");
         return false;
     }
 
     @Override
     public boolean onNestedPreFling(View target, float velocityX, float velocityY) {
-        Log.i(Log_TAG, "onNestedPreFling: ");
+      //  Log.i(Log_TAG, "onNestedPreFling: ");
         return false;
     }
 
     @Override
     public int getNestedScrollAxes(){
-        Log.i(Log_TAG, "getNestedScrollAxes: ");
+      //  Log.i(Log_TAG, "getNestedScrollAxes: ");
         return mNestedScrollingParentHelper.getNestedScrollAxes();
     }
     //判断可滚动的View是否滚到了顶部
