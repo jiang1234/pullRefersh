@@ -12,6 +12,11 @@ import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.view.animation.Animation;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.Interpolator;
+import android.view.animation.Transformation;
 import android.widget.ImageView;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.NestedScrollingParentHelper;
@@ -19,7 +24,9 @@ import android.widget.Scroller;
 
 
 public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingParent{
+    public static final int MAX_OFFSET_ANIMATION_DURATION = 700;
     private static final String Log_TAG = PullDownRefreshLayout.class.getSimpleName();
+    private static final float DECELERATE_INTERPOLATION_FACTOR = 2f;
     private BaseRefreshView mBaseRefreshView;
     private int mTouchSlop;
     private int mHeaderHight;
@@ -32,10 +39,13 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
     private float mPercent;
     private int mTopTouch;
     private int mInitTouch;
+    private int mMaxPullDown = 168;
     private int mInitY;
+    private boolean mRefresh;
     private View mTouch;
     private VelocityTracker mVelocityTracker;
     private Scroller mScroller;
+    private Interpolator mDecelerateInterpolator;
 
     private ImageView mHeader;
     private  NestedScrollingParentHelper mNestedScrollingParentHelper;
@@ -50,25 +60,42 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
             //以后有了自定义属性，再加
         }
         setWillNotDraw(false);
+        mRefresh = false;
         mNestedScrollingParentHelper = new NestedScrollingParentHelper(this){};
         isHeaderShow = false;
         mVelocityTracker = VelocityTracker.obtain();
         mScroller = new Scroller(getContext());
         mBaseRefreshView = new SunRefreshView(this);
+        mDecelerateInterpolator = new DecelerateInterpolator(DECELERATE_INTERPOLATION_FACTOR);
+        //WindowManager wm = this.getWindowManager();
+        //int width = wm.getDefaultDisplay().getWidth();
+        //手动加入mHeader
+        mHeader = new ImageView(context);
+        mHeader.setImageDrawable(mBaseRefreshView);
+        addView(mHeader);
     }
     public int getTopTouch(){
         return this.mTopTouch;
+    }
+    public int getMaxPullDown(){
+        return this.mMaxPullDown;
+    }
+    public int getOriginalOffSetHeader(){
+        return this.mOriginalOffSetHeader;
+    }
+    public int getCurrentOffSetHeader(){
+        return this.mOriginalOffSetHeader;
     }
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec){
         super.onMeasure(widthMeasureSpec,heightMeasureSpec);
         View child1 = getChildAt(0);
         View child2 = getChildAt(1);
-        if(mHeader == null && mTouch == null){
+        if(mTouch == null){
             if(child1 instanceof ImageView){
-                mHeader = (ImageView) child1;
+                //mHeader = (ImageView) child1;
                 mTouch = child2;
             }else{
-                mHeader = (ImageView) child2;
+                //mHeader = (ImageView) child2;
                 mTouch = child1;
             }
         }
@@ -77,24 +104,33 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
 
     }
     protected void onLayout(boolean changed,int left,int top,int right,int bottom){
-        int mHeaderWidth = mHeader.getMeasuredWidth();
-        int mHeaderHeight = mHeader.getMeasuredHeight();
+       // int mHeaderWidth = mHeader.getMeasuredWidth();
+       // int mHeaderHeight = mHeader.getMeasuredHeight();
+        //int mHeaderWidth = 200;
+        //int mHeaderHeight =200;
+        //Log.i("onLayout","mHeaderWidth"+mHeaderWidth);
+        //Log.i("onLayout","mHeaderHeight"+mHeaderHeight);
         int mTouchWidth = mTouch.getMeasuredWidth();
         int mTouchHeight = mTouch.getMeasuredHeight();
-        mOriginalOffSetHeader = -mHeaderHeight;
-        mCurrentOffSetHeader = -mHeaderHeight;
-        int mHeaderLeft = getPaddingLeft();
-        int mHeaderRight = mHeaderLeft + mHeaderWidth;
-        int mHeaderTop = mOriginalOffSetHeader;
 
-        int mHeaderBottom = mHeaderTop + mHeaderHeight;
-        mHeader.layout(mHeaderLeft,mHeaderTop,mHeaderRight,mHeaderBottom);
+        mMaxPullDown = (int)(mTouchWidth*0.35f);
+       // Log.i("onLayout","mHeaderWidth"+mTouchWidth);
+       // Log.i("onLayout","mHeaderHeight"+mTouchHeight);
+        int mHeaderLeft = getPaddingLeft();
+        int mHeaderRight = mHeaderLeft + mTouchWidth;
+        int mHeaderTop = getPaddingTop();
+        int mHeaderBottom = mHeaderTop + mTouchHeight;
+
         int mTouchLeft = getPaddingLeft();
         int mTouchRight = mTouchLeft + mTouchWidth;
-        int mTouchTop = getPaddingTop()+mHeaderBottom;
-        int mTouchBottom = mTouchTop + mTouchHeight;
-        mTopTouch = mTouchTop;
+        int mTouchTop = getPaddingTop() + mCurrentOffSetHeader;
+        int mTouchBottom = mTouchTop + mTouchHeight + mCurrentOffSetHeader;
+      //  Log.i("onLayout","mHeaderLeft"+mHeaderLeft+"mHeaderTop"+mHeaderTop+"mHeaderRight"+mHeaderRight+"mHeaderBottom"+mHeaderBottom);
         mTouch.layout(mTouchLeft,mTouchTop,mTouchRight,mTouchBottom);
+        mHeader.layout(mHeaderLeft,mHeaderTop,mHeaderRight,mHeaderBottom);
+
+        mTopTouch = mTouchTop;
+
     }
     //还未考虑多指触碰的情况，先考虑单指触碰
     @Override
@@ -106,46 +142,46 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
       //  Log.i(Log_TAG, "onInterceptTouchEvent:"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:{
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_DOWN");
+               // Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_DOWN");
                 mInitY = y;
                // Log.i(Log_TAG, "onInterceptTouchEvent:ACTION_DOWN"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
                 intercepted = false;
                 break;
             }
             case MotionEvent.ACTION_MOVE:{
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE1");
+              //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE1");
                // Log.i(Log_TAG, "onInterceptTouchEvent:ACTION_MOVE"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
                 int deltaX = x - mLastXIntercept;
                 int deltaY = y - mLastYIntercept;
                 if(canScrollingUp()){
-                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE2"+canScrollingUp()+Math.abs(deltaY)+"aa" + mTouchSlop+"aa"+deltaY);
+                  //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE2"+canScrollingUp()+Math.abs(deltaY)+"aa" + mTouchSlop+"aa"+deltaY);
                     return false;
                 }
 
                 //如果是垂直方向的滑动
                 //Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE垂直"+"x"+x+"y"+y+"dy"+deltaY);
                 if(Math.abs(deltaY)>Math.abs(deltaX)){
-                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE3");
+                  //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE3");
                     mVelocityTracker.computeCurrentVelocity(1000);
                    //Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP垂直"+isScrollingDown(mVelocityTracker.getXVelocity()));
                     if(isScrollingDown(mVelocityTracker.getYVelocity()) && Math.abs(deltaY) > mTouchSlop){
-                        Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE4"+mVelocityTracker.getYVelocity());
+                       // Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE4"+mVelocityTracker.getYVelocity());
                         intercepted = true;
                     }else{
-                        Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE5");
+                      //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE5");
                         intercepted = false;
                     }
                 }else{
-                    Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE6");
+                 //   Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_MOVE6");
                     intercepted = false;
                 }
                 mVelocityTracker.clear();
                 break;
             }
             case MotionEvent.ACTION_CANCEL:
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_CANCEL");
+              //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_CANCEL");
             case MotionEvent.ACTION_UP:{
-                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
+              //  Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
                 break;
             }
             default:
@@ -153,7 +189,7 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         }
         mLastXIntercept = x;
         mLastYIntercept = y;
-        Log.i(Log_TAG, "onInterceptTouchEvent: return"+intercepted);
+      //  Log.i(Log_TAG, "onInterceptTouchEvent: return"+intercepted);
         return intercepted;
     }
     @Override
@@ -170,13 +206,16 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
                 Log.i(Log_TAG, "onTouchEvent: ACTION_MOVE");
                 int deltaY = mLastYIntercept - y;
                 int scrollY = 0;
-                if(deltaY < mCurrentOffSetHeader){
-                    scrollY = (int)(mCurrentOffSetHeader*0.2);
+                if(mCurrentOffSetHeader - deltaY > mMaxPullDown){
+                    scrollY = (int)((mCurrentOffSetHeader - mMaxPullDown));
                 }else{
-                    scrollY = (int)(deltaY*0.2);
+                    scrollY = (int)(deltaY);
                 }
                 mCurrentOffSetHeader -= scrollY;
-                mPercent = mCurrentOffSetHeader/mOriginalOffSetHeader;
+           //     Log.i("mCurrentOffMOVE",""+mCurrentOffSetHeader);
+                mPercent = (float) mCurrentOffSetHeader/mMaxPullDown;
+            //    Log.i("mPercent",""+mPercent);
+                mBaseRefreshView.setPercent(mPercent,false);
                 offsetTopAndBottom(-scrollY);
                 //scrollBy(0,scrollY);
 
@@ -186,9 +225,19 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
                 Log.i(Log_TAG, "onTouchEvent: ACTION_UP");
                 int dy = mCurrentOffSetHeader - mOriginalOffSetHeader;
                 int scrollY = (int)(dy);
-                scrollBy(0,scrollY);
-                mCurrentOffSetHeader -= scrollY;
-                isHeaderShow = false;
+
+                if(mCurrentOffSetHeader >= mMaxPullDown){
+                    Log.i("mRefresh","mRefresh");
+                    mRefresh = true;
+                    setRefresh();
+                }else{
+                    offsetTopAndBottom(-scrollY);
+                    mCurrentOffSetHeader -= scrollY;
+                    //isHeaderShow = false;
+                }
+
+                //scrollBy(0,scrollY);
+
                 break;
             }
             default:
@@ -196,6 +245,47 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         }
         return true;
     }
+    public void setRefresh(){
+        if(!mRefresh)
+            return;
+        Log.i("setRefresh","setRefresh");
+        mBaseRefreshView.setRefresh(true,true);
+        animateRefresh();
+
+    }
+    public void animateRefresh(){
+        Log.i("animateRefresh","animateRefresh");
+        mAnimateRefresh.reset();
+        mAnimateRefresh.setDuration(MAX_OFFSET_ANIMATION_DURATION);
+        mAnimateRefresh.setInterpolator(mDecelerateInterpolator);
+        mAnimateRefresh.setAnimationListener(mRefreshListener);
+        mHeader.clearAnimation();
+
+        mHeader.startAnimation(mAnimateRefresh);
+
+    }
+    private final Animation mAnimateRefresh = new Animation() {
+        @Override
+        public void applyTransformation(float interpolatedTime, Transformation t) {
+            mBaseRefreshView.setRotate(interpolatedTime,true);
+        }
+    };
+    private Animation.AnimationListener mRefreshListener = new Animation.AnimationListener(){
+        @Override
+        public void onAnimationStart(Animation animation) {
+        }
+
+        @Override
+        public void onAnimationRepeat(Animation animation) {
+        }
+
+        @Override
+        public void onAnimationEnd(Animation animation) {
+            Log.i("onAnimationEnd","onAnimationEnd");
+            mRefresh = false;
+            offsetTopAndBottom(-mTouch.getTop());
+        }
+    };
     //一下为NestedScrolling嵌套滚动机制
     //NestedScrollingParent
     @Override

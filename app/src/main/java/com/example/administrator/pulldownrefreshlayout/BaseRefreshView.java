@@ -20,8 +20,9 @@ public abstract class BaseRefreshView extends Drawable implements Drawable.Callb
         return null;
     }
     //设置百分比，是否重绘
-    public abstract void setPercent(float precent, boolean invalidate);
-
+    public abstract void setRefresh(boolean mRefresh, boolean invalidate);
+    public abstract void setPercent(float percent, boolean invalidate);
+    public abstract void setRotate(float mRotate,boolean invalidate);
     public abstract void offsetTopAndBottom(int offset);
 
     @Override
