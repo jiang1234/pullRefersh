@@ -20,6 +20,7 @@ import android.widget.Scroller;
 
 public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingParent{
     private static final String Log_TAG = PullDownRefreshLayout.class.getSimpleName();
+    private BaseRefreshView mBaseRefreshView;
     private int mTouchSlop;
     private int mHeaderHight;
     //初始header的位置
@@ -28,6 +29,10 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
     private int mCurrentOffSetHeader;
     private int mLastXIntercept;
     private int mLastYIntercept;
+    private float mPercent;
+    private int mTopTouch;
+    private int mInitTouch;
+    private int mInitY;
     private View mTouch;
     private VelocityTracker mVelocityTracker;
     private Scroller mScroller;
@@ -44,10 +49,15 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         if(attrs != null){
             //以后有了自定义属性，再加
         }
+        setWillNotDraw(false);
         mNestedScrollingParentHelper = new NestedScrollingParentHelper(this){};
         isHeaderShow = false;
         mVelocityTracker = VelocityTracker.obtain();
         mScroller = new Scroller(getContext());
+        mBaseRefreshView = new SunRefreshView(this);
+    }
+    public int getTopTouch(){
+        return this.mTopTouch;
     }
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec){
         super.onMeasure(widthMeasureSpec,heightMeasureSpec);
@@ -83,6 +93,7 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         int mTouchRight = mTouchLeft + mTouchWidth;
         int mTouchTop = getPaddingTop()+mHeaderBottom;
         int mTouchBottom = mTouchTop + mTouchHeight;
+        mTopTouch = mTouchTop;
         mTouch.layout(mTouchLeft,mTouchTop,mTouchRight,mTouchBottom);
     }
     //还未考虑多指触碰的情况，先考虑单指触碰
@@ -96,6 +107,7 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:{
                 Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_DOWN");
+                mInitY = y;
                // Log.i(Log_TAG, "onInterceptTouchEvent:ACTION_DOWN"+"x"+x+"y"+y+"lastx"+mLastXIntercept+"lasty"+mLastYIntercept);
                 intercepted = false;
                 break;
@@ -130,6 +142,8 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
                 mVelocityTracker.clear();
                 break;
             }
+            case MotionEvent.ACTION_CANCEL:
+                Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_CANCEL");
             case MotionEvent.ACTION_UP:{
                 Log.i(Log_TAG, "onInterceptTouchEvent: ACTION_UP");
                 break;
@@ -161,15 +175,19 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
                 }else{
                     scrollY = (int)(deltaY*0.2);
                 }
-                scrollBy(0,scrollY);
                 mCurrentOffSetHeader -= scrollY;
+                mPercent = mCurrentOffSetHeader/mOriginalOffSetHeader;
+                offsetTopAndBottom(-scrollY);
+                //scrollBy(0,scrollY);
+
                 break;
             }
             case MotionEvent.ACTION_UP:{
                 Log.i(Log_TAG, "onTouchEvent: ACTION_UP");
                 int dy = mCurrentOffSetHeader - mOriginalOffSetHeader;
-                scrollBy(0,dy);
-                mCurrentOffSetHeader -= dy;
+                int scrollY = (int)(dy);
+                scrollBy(0,scrollY);
+                mCurrentOffSetHeader -= scrollY;
                 isHeaderShow = false;
                 break;
             }
@@ -275,5 +293,10 @@ public class PullDownRefreshLayout extends ViewGroup implements NestedScrollingP
         }else{
             return true;
         }
+    }
+    public void offsetTopAndBottom(int offset){
+        mTouch.offsetTopAndBottom(offset);
+        mBaseRefreshView.offsetTopAndBottom(offset);
+        mTopTouch = mTouch.getTop();
     }
 }

@@ -18,7 +18,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".dateAdapter" />
-        <activity android:name=".ContentAdapter"></activity>
+        <activity android:name=".ContentAdapter" />
+        <activity android:name=".BaseRrefreshView" />
+        <activity android:name=".EmptyRefreshView"></activity>
     </application>
 
 </manifest>
